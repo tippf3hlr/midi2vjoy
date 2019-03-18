@@ -1,23 +1,23 @@
 #  midi2vjoy.py
-#  
+#
 #  Copyright 2017  <c0redumb>
-#  
+#
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#  
-#  
+#
+#
 
 import sys, os, time, traceback
 import ctypes
@@ -29,7 +29,7 @@ import winreg
 # Axis mapping
 axis = {'X': 0x30, 'Y': 0x31, 'Z': 0x32, 'RX': 0x33, 'RY': 0x34, 'RZ': 0x35,
 		'SL0': 0x36, 'SL1': 0x37, 'WHL': 0x38, 'POV': 0x39}
-		
+
 # Globals
 options = None
 
@@ -43,7 +43,7 @@ def midi_test():
 		if info[2]:
 			print(i, info[1].decode())
 	d = int(input('Select MIDI device to test: '))
-	
+
 	# Open the device for testing
 	try:
 		print('Opening MIDI device:', d)
@@ -55,27 +55,44 @@ def midi_test():
 			time.sleep(0.1)
 	except:
 		m.close()
-		
+
 def read_conf(conf_file):
 	'''Read the configuration file'''
 	table = {}
 	vids = []
 	with open(conf_file, 'r') as f:
 		for l in f:
-			if len(l.strip()) == 0 or l[0] == '#':
-				continue
-			fs = l.split()
-			key = (int(fs[0]), int(fs[1]))
-			if fs[0] == '144':
-				val = (int(fs[2]), int(fs[3]))
-			else:
-				val = (int(fs[2]), fs[3])
-			table[key] = val
-			vid = int(fs[2])
-			if not vid in vids:
-				vids.append(vid)
+			try:
+
+				if len(l.strip()) == 0 or l[0] == '#':
+					continue
+				fs = l.split()
+
+				if fs[0] == '176':
+					key = (int(fs[0]), int(fs[1]), 0)
+					val = (int(fs[3]), fs[4])
+				else:
+					input_value = int(-1)
+					if fs[2] != '*':
+						input_value = int(fs[2])
+					key = (int(fs[0]), int(fs[1]), input_value)
+
+					v_value = int(1)
+					if len(fs) >= 6 and fs[5] == 'up':
+						v_value = int(0)
+
+					val = (int(fs[3]), int(fs[4]), v_value)
+
+				table[key] = val
+				vid = int(fs[3])
+				if not vid in vids:
+					vids.append(vid)
+			except:
+				print('error at line', l)
+				traceback.print_exc()
+
 	return (table, vids)
-		
+
 def joystick_run():
 	# Process the configuration file
 	if options.conf == None:
@@ -90,7 +107,7 @@ def joystick_run():
 	except:
 		print('Error processing the configuration file:', options.conf)
 		return
-		
+
 	# Getting the MIDI device ready
 	if options.midi == None:
 		print('Must specify a MIDI interface to use')
@@ -102,19 +119,24 @@ def joystick_run():
 	except:
 		print('Error opting MIDI device:', options.midi)
 		return
-		
+
 	# Load vJoysticks
 	try:
 		# Load the vJoy library
 		# Load the registry to find out the install location
-		vjoyregkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{8E31F76F-74C3-47F1-9550-E041EEDC5FBB}_is1')
-		installpath = winreg.QueryValueEx(vjoyregkey, 'InstallLocation')
-		winreg.CloseKey(vjoyregkey)
-		#print(installpath[0])
+		#vjoyregkey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{8E31F76F-74C3-47F1-9550-E041EEDC5FBB}_is1')
+		#winreg.QueryValueEx(vjoyregkey, 'InstallLocation')
+		installpath = ["C:\\Program Files\\vJoy\\"]
+		#winreg.CloseKey(vjoyregkey)
+
+		if options.verbose:
+			print("VJoy install path", installpath[0])
+
 		dll_file = os.path.join(installpath[0], 'x64', 'vJoyInterface.dll')
 		vjoy = ctypes.WinDLL(dll_file)
-		#print(vjoy.GetvJoyVersion())
-		
+		if options.verbose:
+			print("VJoy version", vjoy.GetvJoyVersion())
+
 		# Getting ready
 		for vid in vids:
 			if options.verbose:
@@ -123,27 +145,36 @@ def joystick_run():
 			assert(vjoy.GetVJDStatus(vid) == 0)
 			vjoy.ResetVJD(vid)
 	except:
-		#traceback.print_exc()
+		traceback.print_exc()
 		print('Error initializing virtual joysticks')
 		return
-	
+
 	try:
-		if options.verbose:
-			print('Ready. Use ctrl-c to quit.')
+		print('Ready. Use ctrl-c to quit.')
 		while True:
 			while midi.poll():
 				ipt = midi.read(1)
-				#print(ipt)
-				key = tuple(ipt[0][0][0:2])
-				reading = ipt[0][0][2]
-				# Check that the input is defined in table
-				#print(key, reading)
-				if not key in table:
-					continue
-				opt = table[key]
 				if options.verbose:
-					print(key, '->', opt, reading)
+					print(ipt)
+
+				if ipt[0][0][0] == 176:
+					key = (ipt[0][0][0], ipt[0][0][1], 0)
+					if not key in table:
+						continue
+					opt = table[key]
+				else:
+					key = tuple(ipt[0][0][0:3])
+					if not key in table:
+						key = (ipt[0][0][0], ipt[0][0][1], -1)
+					if not key in table:
+						continue
+					opt = table[key]
+
 				if key[0] == 176:
+					reading = ipt[0][0][2]
+					if options.verbose:
+						print('slider', key, '->', opt, reading)
+
 					# A slider input
 					# Check that the output axis is valid
 					# Note: We did not check if that axis is defined in vJoy
@@ -151,25 +182,26 @@ def joystick_run():
 						continue
 					reading = (reading + 1) << 8
 					vjoy.SetAxis(reading, opt[0], axis[opt[1]])
-				elif key[0] == 144:
+				else:
+					if options.verbose:
+						print('button', key, '->', opt, opt[2])
+
 					# A button input
-					vjoy.SetBtn(reading, opt[0], opt[1])
-			time.sleep(0.1)
+					vjoy.SetBtn(opt[2], opt[0], opt[1])
+
+			time.sleep(0.01)
 	except:
 		#traceback.print_exc()
 		pass
-		
+
 	# Relinquish vJoysticks
 	for vid in vids:
-		if options.verbose:
-			print('Relinquishing vJoystick:', vid)
+		print('Relinquishing vJoystick:', vid)
 		vjoy.RelinquishVJD(vid)
-	
-	# Close MIDI device
-	if options.verbose:
-		print('Closing MIDI device')
+
+	print('Closing MIDI device')
 	midi.close()
-		
+
 def main():
 	# parse arguments
 	parser = OptionParser()
@@ -185,14 +217,14 @@ def main():
 						  action="store_false", dest="verbose")
 	global options
 	(options, args) = parser.parse_args()
-	
+
 	pygame.midi.init()
-	
+
 	if options.runtest:
 		midi_test()
 	else:
 		joystick_run()
-	
+
 	pygame.midi.quit()
 
 if __name__ == '__main__':
