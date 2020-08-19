@@ -39,13 +39,14 @@ def midi_test():
 	# List all the devices and make a choice
 	print('Input MIDI devices:')
 	for i in range(n):
-		info = pygame.midi.get_device_info(i)
-		if info[2]:
-			print(i, info[1].decode())
+		(i_interf, i_name, i_input, i_output, i_opened) = pygame.midi.get_device_info(i)
+		if i_input == 1:
+			print(i, "\"" + i_name.decode() + "\"")
 	d = int(input('Select MIDI device to test: '))
 
 	# Open the device for testing
 	try:
+		m = None
 		print('Opening MIDI device:', d)
 		m = pygame.midi.Input(d)
 		print('Device opened for testing. Use ctrl-c to quit.')
@@ -54,7 +55,9 @@ def midi_test():
 				print(m.read(1))
 			time.sleep(0.1)
 	except:
-		m.close()
+		traceback.print_exc()
+		if m != None:
+			m.close()
 
 def read_conf(conf_file):
 	'''Read the configuration file'''
@@ -102,8 +105,8 @@ def joystick_run():
 		if options.verbose:
 			print('Opening configuration file:', options.conf)
 		(table, vids) = read_conf(options.conf)
-		#print(table)
-		#print(vids)
+		print(table)
+		print(vids)
 	except:
 		print('Error processing the configuration file:', options.conf)
 		return
@@ -191,7 +194,7 @@ def joystick_run():
 
 			time.sleep(0.01)
 	except:
-		#traceback.print_exc()
+		traceback.print_exc()
 		pass
 
 	# Relinquish vJoysticks
