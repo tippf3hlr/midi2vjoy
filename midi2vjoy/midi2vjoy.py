@@ -33,6 +33,13 @@ axis = {'X': 0x30, 'Y': 0x31, 'Z': 0x32, 'RX': 0x33, 'RY': 0x34, 'RZ': 0x35,
 # Globals
 options = None
 
+def is_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
+
 def midi_test():
 	n = pygame.midi.get_count()
 
@@ -74,22 +81,35 @@ def read_conf(conf_file):
 				if fs[0] == '176':
 					key = (int(fs[0]), int(fs[1]), 0)
 					val = (int(fs[3]), fs[4])
-				else:
+
+					if options.verbose:
+						print('slider', key, val)
+					table[key] = val
+					vid = int(fs[3])
+					if not vid in vids:
+						vids.append(vid)
+				
+				if is_int(fs[4]):
 					input_value = int(-1)
 					if fs[2] != '*':
 						input_value = int(fs[2])
-					key = (int(fs[0]), int(fs[1]), input_value)
+					key = (int(fs[0]), int(fs[1]), 1, input_value)
 
 					v_value = int(1)
 					if len(fs) >= 6 and fs[5] == 'up':
 						v_value = int(0)
+					if len(fs) >= 6 and fs[5] == 'press_and_release':
+						v_value = int(-1) # we do like using obscure integers to signal things in this project, right?
 
 					val = (int(fs[3]), int(fs[4]), v_value)
 
-				table[key] = val
-				vid = int(fs[3])
-				if not vid in vids:
-					vids.append(vid)
+					if options.verbose:
+						print('button', key, val)
+					table[key] = val
+					vid = int(fs[3])
+					if not vid in vids:
+						vids.append(vid)
+				
 			except:
 				print('error at line', l)
 				traceback.print_exc()
@@ -123,6 +143,9 @@ def joystick_run():
 		print('Error opting MIDI device:', options.midi)
 		return
 
+	release_queue = []
+	removed_queue_indices = []
+
 	# Load vJoysticks
 	try:
 		# Load the vJoy library
@@ -155,42 +178,72 @@ def joystick_run():
 	try:
 		print('Ready. Use ctrl-c to quit.')
 		while True:
+			if len(release_queue) > 0:
+				time_now = time.time()
+				for i in range(len(release_queue)):
+					queue_item = release_queue[i]
+					if time_now > queue_item[4]:
+						if options.verbose:
+							print('button', queue_item[3], '->', 'release')
+						removed_queue_indices.insert(0, i)
+						vjoy.SetBtn(queue_item[0], queue_item[1], queue_item[2])
+
+				if len(removed_queue_indices) > 0:
+					for removed_index in removed_queue_indices:
+						release_queue.pop(removed_index)
+					removed_queue_indices = []
+					
+
 			while midi.poll():
 				ipt = midi.read(1)
 				if options.verbose:
 					print(ipt)
 
-				if ipt[0][0][0] == 176:
-					key = (ipt[0][0][0], ipt[0][0][1], 0)
-					if not key in table:
-						continue
-					opt = table[key]
-				else:
-					key = tuple(ipt[0][0][0:3])
-					if not key in table:
-						key = (ipt[0][0][0], ipt[0][0][1], -1)
-					if not key in table:
-						continue
-					opt = table[key]
-
-				if key[0] == 176:
-					reading = ipt[0][0][2]
-					if options.verbose:
-						print('slider', key, '->', opt, reading)
-
+				# slider key has 0 as 3rd element
+				slider_key = (ipt[0][0][0], ipt[0][0][1], 0)
+				if slider_key in table:
 					# A slider input
 					# Check that the output axis is valid
 					# Note: We did not check if that axis is defined in vJoy
-					if not opt[1] in axis:
-						continue
-					reading = (reading + 1) << 8
-					vjoy.SetAxis(reading, opt[0], axis[opt[1]])
-				else:
-					if options.verbose:
-						print('button', key, '->', opt, opt[2])
+					opt = table[slider_key]
+					if opt[1] in axis:
+						reading = ipt[0][0][2]
+						if options.verbose:
+							print('slider', slider_key, '->', opt, reading)
 
+						reading = (reading + 1) << 8
+						vjoy.SetAxis(reading, opt[0], axis[opt[1]])
+
+				# button key has 1 as 3rd element, if button value is not * then this value is 4th element
+				button_key = (ipt[0][0][0], ipt[0][0][1], 1, ipt[0][0][2])
+				# if no mapping for exact match
+				if not button_key in table:
+					# set button key for "any" match (* in config)
+					button_key = (ipt[0][0][0], ipt[0][0][1], 1, -1)
+				
+				if button_key in table:
+					opt = table[button_key]
+					
 					# A button input
-					vjoy.SetBtn(opt[2], opt[0], opt[1])
+					if opt[2] == -1:
+						if options.verbose:
+							print('button', button_key, '->', opt, 'press_and_release')
+
+						already_waiting_for_release = False
+						for rq_index in range(len(release_queue)):
+							if release_queue[rq_index][1] == opt[0] and release_queue[rq_index][2] == opt[1]:
+								already_waiting_for_release = True
+								if options.verbose:
+									print('button', button_key, 'already pressed and waiting for release')
+
+						if not already_waiting_for_release:
+							vjoy.SetBtn(1, opt[0], opt[1])
+							delay = 0.1 # in seconds
+							release_queue.append((0, opt[0], opt[1], button_key, time.time() + delay))
+					else:
+						if options.verbose:
+							print('button', button_key, '->', opt, opt[2])
+						vjoy.SetBtn(opt[2], opt[0], opt[1])
 
 			time.sleep(0.01)
 	except:
