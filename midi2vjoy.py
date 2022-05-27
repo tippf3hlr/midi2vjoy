@@ -341,7 +341,8 @@ def help_page():
 Use MIDI controllers as joysticks with the help of midi2vJoy and vJoy.
 
 Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
-    -h  --help:         shows help regarding the config file
+    -h  --help:         shows this help page
+    --config-help       instructions to create a config file
     -t  --test:         display raw MIDI input
     -m  --midi:         MIDI device to use. To see available devices, use -t
     -c  --config:       path to a config file (see example_config.conf)
