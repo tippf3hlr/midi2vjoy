@@ -207,16 +207,26 @@ def joystick_run():
         if config.verbose:
             traceback.print_exc()
         return
-    verbose("Config:", config)
 
-    verbose("vJoy IDs:", vJoy_IDs)
     if options.verbose:
-        verbose("---------------------")
+        print("vJoy ID{}:".format("s" if len(vJoy_IDs) > 1 else ""),
+              str(vJoy_IDs).removeprefix('[').removesuffix(']'))
+        print("Config:")
+        print("---------------------")
+        for key in config:
+            print("{} {}:".format(key[0], key[1]))
+            for value in config[key]:
+                print("    {} {} {} {} {}".format(
+                    value[0], value[1], value[2], value[3], value[4]))
+        print("---------------------")
+
+        print("\nAxis starting values:")
+        print("---------------------")
         for axis in axis_value:
-            verbose("   " + list(axis_table.keys())[
-                    list(axis_table.values()).index(axis)], (3 - len(list(axis_table.keys())[
-                        list(axis_table.values()).index(axis)])) * " ", axis_value[axis])
-        verbose("---------------------\n")
+            print("| " + list(axis_table.keys())[
+                list(axis_table.values()).index(axis)], (3 - len(list(axis_table.keys())[
+                    list(axis_table.values()).index(axis)])) * " ", axis_value[axis])
+        print("---------------------\n")
 
     # Getting the MIDI device ready
     if options.midi == None:
@@ -262,7 +272,7 @@ def joystick_run():
         return
 
     try:
-        print('Ready. Use Ctrl-C to quit.')
+        print('Ready. Use ctrl-c to quit.')
         for axis in axis_table:
             vjoy.SetAxis(axis_table[axis], 1, axis)
         while True:
@@ -320,8 +330,10 @@ def verbose(*message):
         return
     if not options.verbose:
         return
-    string = ""
-    for s in message:
+    string = message[0]
+    for i, s in enumerate(message):
+        if i == 0:
+            continue
         string += ' ' + str(s)
     print(string)
 
@@ -342,7 +354,6 @@ usage: python midi2vjoy.py -m <midi_device> -c <config_file> [-v] [-q]
     -m  --midi:         MIDI device to use. To see available devices, use -t
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
-    -q  --quiet:        no output
 '''
     )
 
@@ -357,7 +368,6 @@ def main():
                       help="Configuration file for the translation")
     parser.add_option("-v", "--verbose",
                       action="store_true", dest="verbose")
-    parser.add_option("-q", "--quiet", action="store_true", dest="quiet")
     global options
     options, args = parser.parse_args()
 
