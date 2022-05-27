@@ -18,6 +18,9 @@ Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -m  --midi:         MIDI device to use. To see available devices, use -t
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
+    
+Standard config file is mapping.conf in the same directory as midi2vjoy.exe.
+Standard MIDI device is 1.
 ```
 ```
                __ _

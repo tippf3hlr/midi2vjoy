@@ -19,6 +19,7 @@
 #
 #
 
+from inspect import trace
 from os import path
 import sys
 import time
@@ -74,44 +75,37 @@ def midi_test():
 
     # List all the devices and make a choice
     print('Input MIDI devices:')
-    for device_number in range(device_count):
-        (interf, name, input, output,
-         opened) = pygame.midi.get_device_info(device_number)
-        if input:
-            print(str(device_number) + ":", "\"" + name.decode() + "\"")
+    for device_id in range(device_count):
+        (i_interf, i_name, i_input, i_output,
+         i_opened) = pygame.midi.get_device_info(device_id)
+        if i_input == 1:
+            print(str(device_id) + ":", "\"" + i_name.decode() + "\"")
+    device_id_input = int(input('Select MIDI device to test: '))
+
+    # Open the device for testing
+    midi = None
+    print('Opening MIDI device:', device_id_input)
     try:
-        selected_device_number = int(input('Select MIDI device to test: '))
+        midi = pygame.midi.Input(device_id_input)
+    except:
+        traceback.print_exc()
+        if midi != None:
+            midi.close()
+    print('Device opened for testing. Use ctrl-c to quit.')
+    try:
+        while True:
+            while midi.poll():
+                midi_input = midi.read(1)[0][0]
+                print("MIDI: {: 4d} {: 4d} {: 4d}".format(
+                    midi_input[0], midi_input[1], midi_input[2]))
+            time.sleep(0.1)
     except KeyboardInterrupt:
+        if midi != None:
+            midi.close()
         sys.exit()
     except:
-        if(options.verbose):
-            traceback.print_exc()
-        else:
-            print('You have to specify a valid device number')
-            if m is not None:
-                m.close()
-            midi_test()
-    # Open the device for testing
-    try:
-        m = None
-        print('Opening MIDI device:', selected_device_number)
-        m = pygame.midi.Input(selected_device_number)
-        print('Device opened for testing. Use ctrl-c to quit.')
-        while True:
-            while m.poll():
-                print(m.read(1))
-            time.sleep(0.1)
-    except:
-        if options.verbose:
-            traceback.print_exc()
-        else:
-            print('You have to specify a valid device number')
-            if m is not None:
-                m.close()
-            midi_test()
-    finally:
-        if m is not None:
-            m.close()
+        traceback.print_exc()
+        sys.exit()
 
 
 '''
@@ -335,7 +329,8 @@ def verbose(*message):
     print(string)
 
 
-help = '''
+def help_page():
+    print('''
             _     _ _ ____           _
   _ __ ___ (_) __| (_)___ \__   __  | | ___  _   _
  | '_ ` _ \| |/ _` | | __) \ \ / /  | |/ _ \| | | |
@@ -351,11 +346,10 @@ Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -m  --midi:         MIDI device to use. To see available devices, use -t
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
-'''
-
-
-def help_page():
-    print(help)
+    
+Standard config file is mapping.conf in the same directory as midi2vjoy.exe.
+Standard MIDI device is 1.
+''')
 
 
 def help_config():

@@ -1,0 +1,1 @@
+pyinstaller --onefile -i icon.webp midi2vjoy.py
