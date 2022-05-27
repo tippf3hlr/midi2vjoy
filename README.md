@@ -12,7 +12,7 @@ works with endless encoders!
 
 Use MIDI controllers as joysticks with the help of midi2vJoy and vJoy.
 
-Usage: python midi2vjoy.py -m <midi_device> -c <config_file> [-v]
+Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -h  --help:         shows help regarding the config file
     -t  --test:         display raw MIDI input
     -m  --midi:         MIDI device to use. To see available devices, use -t

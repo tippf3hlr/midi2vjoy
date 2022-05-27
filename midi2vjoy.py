@@ -19,10 +19,9 @@
 #
 #
 
+from os import path
 import sys
-import os
 import time
-from tkinter import E
 import traceback
 import ctypes
 from optparse import OptionParser
@@ -83,7 +82,7 @@ def midi_test():
     try:
         selected_device_number = int(input('Select MIDI device to test: '))
     except KeyboardInterrupt:
-        quit()
+        sys.exit()
     except:
         if(options.verbose):
             traceback.print_exc()
@@ -189,7 +188,7 @@ def read_conf(conf_file):
                 print("Encountered an error in", conf_file, "at line", index)
                 if options.verbose:
                     traceback.print_exc()
-                quit()
+                sys.exit()
 
     return (config, vJoy_IDs)
 
@@ -256,7 +255,7 @@ def joystick_run():
             arch = 'x64'
         else:
             arch = 'x86'
-        dll_path = os.path.join(installpath, arch, 'vJoyInterface.dll')
+        dll_path = path.join(installpath, arch, 'vJoyInterface.dll')
         vjoy = ctypes.WinDLL(dll_path)
         verbose("VJoy version", vjoy.GetvJoyVersion())
 
@@ -311,7 +310,7 @@ def joystick_run():
                     verbose(input_pretty)
             time.sleep(0.01)
     except KeyboardInterrupt:
-        quit()
+        sys.exit()
     except:
         traceback.print_exc()
         pass
@@ -326,8 +325,6 @@ def joystick_run():
 
 
 def verbose(*message):
-    if options.quiet:
-        return
     if not options.verbose:
         return
     string = message[0]
@@ -349,7 +346,7 @@ def help_page():
 
 Use MIDI controllers as joysticks with the help of midi2vJoy and vJoy.
 
-Usage: python midi2vjoy.py -m <midi_device> -c <config_file> [-v]
+Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -h  --help:         shows help regarding the config file
     -t  --test:         display raw MIDI input
     -m  --midi:         MIDI device to use. To see available devices, use -t
