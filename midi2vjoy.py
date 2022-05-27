@@ -24,7 +24,7 @@ import sys
 import time
 import traceback
 import ctypes
-from optparse import OptionParser
+from argparse import ArgumentParser
 import pygame.midi
 import winreg
 import platform
@@ -335,8 +335,7 @@ def verbose(*message):
     print(string)
 
 
-def help_page():
-    print('''
+help = '''
             _     _ _ ____           _
   _ __ ___ (_) __| (_)___ \__   __  | | ___  _   _
  | '_ ` _ \| |/ _` | | __) \ \ / /  | |/ _ \| | | |
@@ -353,10 +352,13 @@ Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
 '''
-          )
 
 
-def help():
+def help_page():
+    print(help)
+
+
+def help_config():
     print(
         '''
                __ _      
@@ -398,30 +400,34 @@ Z 0
 
 
 def main():
-    parser = OptionParser()
-    parser.add_option("-t", "--test", dest="runtest",
-                      action="store_true", help="To test the midi inputs")
-    parser.add_option("-m", "--midi", dest="midi", action="store",
-                      type="int", help="File holding the list of file to be checked")
-    parser.add_option("-c", "--conf", dest="conf", action="store",
-                      help="Configuration file for the translation")
-    parser.add_option("-v", "--verbose",
-                      action="store_true", dest="verbose")
-    parser.add_option("--config-help",
-                      action="store_true", dest="help")
+    parser = ArgumentParser(add_help=False)
+    parser.add_argument("-t", "--test", action="store_true")
+    parser.add_argument("-m", "--midi", dest="midi", action="store",
+                        type=int)
+    parser.add_argument("-c", "--conf")
+    parser.add_argument("-v", "--verbose",
+                        action="store_true")
+    parser.add_argument("--config-help",
+                        action="store_true")
+    parser.add_argument("-h", "--help", action="store_true")
     global options
-    options, args = parser.parse_args()
+    options = parser.parse_args()
+
+    options.midi = 1
+    options.conf = "mapping.conf"
 
     pygame.midi.init()
 
     if options.help:
-        help()
-    elif options.runtest:
-        midi_test()
-    elif not options.midi and not options.conf:
         help_page()
-    else:
+    elif options.config_help:
+        help_config()
+    elif options.test:
+        midi_test()
+    elif path.exists(options.conf):
         joystick_run()
+    else:
+        help_page()
 
     pygame.midi.quit()
 
