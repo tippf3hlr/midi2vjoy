@@ -32,7 +32,7 @@ import platform
 
 # Constants
 # Axis mapping
-axis = {
+axis_table = {
     'X': 0x30,
     'Y': 0x31,
     'Z': 0x32,
@@ -46,16 +46,16 @@ axis = {
 }
 
 axis_value = {
-    'X': 0,
-    'Y': 0,
-    'Z': 0,
-    'RX': 0,
-    'RY': 0,
-    'RZ': 0,
-    'SL0': 0,
-    'SL1': 0,
-    'WHL': 0,
-    'POV': 0
+    0x30: 0,
+    0x31: 0,
+    0x32: 0,
+    0x33: 0,
+    0x34: 0,
+    0x35: 0,
+    0x36: 0,
+    0x37: 0,
+    0x38: 0,
+    0x39: 0
 }
 
 # Globals
@@ -126,7 +126,6 @@ midi_key midi_channel midi_status --button-axis-> vJoy_id axis -50
 # button:
 midi_key midi_channel midi_status --button-> vJoy_id button down
 midi_key midi_channel midi_status --button-> vJoy_id button up
-midi_key midi_channel midi_status(down),midi_status(up) --button-> vJoy_id button down,up
 '''
 
 '''
@@ -137,62 +136,47 @@ config = {
 
 
 def read_conf(conf_file):
-    config = {}
+    config = []
     vJoy_IDs = []
     with open(conf_file, 'r') as file:
-        for line in file:
+        for index, line in enumerate(file):
             try:
                 if len(line.strip()) == 0 or line[0] == '#':
                     continue
-                fs = line.split()
+                args = line.split()
 
-                if fs[3] is not "->":
-                    raise Exception('Unknown command in config file')
-
-                if fs[0] == 'axis':
-                    return
-                elif fs[0] == 'wheel':
-                    return
-                elif fs[0] == 'button':
-                    return
+                midi_key = int(args[0])
+                midi_channel = int(args[1])
+                if args[2] == "--slider->":
+                    mode = "slider"
+                    midi_status = None
+                    vJoy_id = int(args[3])
+                    axis_button = axis_table[args[4]]
+                    action = None
                 else:
-                    raise Exception('Unknown command in config file')
-                if fs[0] == '176':
-                    key = (int(fs[0]), int(fs[1]), 0)
-                    val = (int(fs[3]), fs[4])
-
-                    if options.verbose:
-                        print('slider', key, val)
-                    config[key] = val
-                    vid = int(fs[3])
-                    if not vid in vJoyIDs:
-                        vJoyIDs.append(vid)
-
-                if is_int(fs[4]):
-                    input_value = int(-1)
-                    if fs[2] != '*':
-                        input_value = int(fs[2])
-                    key = (int(fs[0]), int(fs[1]), 1, input_value)
-
-                    v_value = int(1)
-                    if len(fs) >= 6 and fs[5] == 'up':
-                        v_value = int(0)
-                    if len(fs) >= 6 and fs[5] == 'press_and_release':
-                        # we do like using obscure integers to signal things in this project, right?
-                        v_value = int(-1)
-
-                    val = (int(fs[3]), int(fs[4]), v_value)
-
-                    if options.verbose:
-                        print('button', key, val)
-                    config[key] = val
-                    vid = int(fs[3])
-                    if not vid in vJoyIDs:
-                        vJoyIDs.append(vid)
-
+                    midi_status = args[2]
+                    if args[3] == "--button->":
+                        mode = "button"
+                        vJoy_id = int(args[4])
+                        axis_button = int(args[5])
+                        if args[6] == "down":
+                            action = 1
+                        elif args[6] == "up":
+                            action = 0
+                    if args[3] == "--button-axis->":
+                        mode = "button-axis"
+                        vJoy_id = int(args[4])
+                        axis_button = axis_table[args[5]]
+                        action = int(args[6])
+                config.append((midi_key, midi_channel, mode,
+                              midi_status, vJoy_id, axis_button, action))
+                if vJoy_id not in vJoy_IDs:
+                    vJoy_IDs.append(vJoy_id)
             except:
-                print('error at line', line)
-                traceback.print_exc()
+                print("Encountered an error in", conf_file, "at line", index)
+                if options.verbose:
+                    traceback.print_exc()
+                quit()
 
     return (config, vJoy_IDs)
 
@@ -231,7 +215,7 @@ def joystick_run():
         installpath = winreg.QueryValueEx(vjoy_reg_key, 'InstallLocation')[0]
         winreg.CloseKey(vjoy_reg_key)
 
-        verbose("VJoy install path", installpath)
+        verbose("vJoy install path:", installpath)
 
         if platform.machine().endswith('64'):
             arch = 'x64'
@@ -249,85 +233,75 @@ def joystick_run():
             vjoy.ResetVJD(vid)
     except:
         traceback.print_exc()
-        print('Error initializing virtual joysticks')
+        print('Error initializing virtual joysticks. Is vJoy installed?')
         return
 
     try:
         print('Ready. Use ctrl-c to quit.')
         while True:
             while midi.poll():
-                input = midi.read(1)
+                input = midi.read(1)[0][0]
                 verbose("MIDI input:", input)
 
-                key = (input[0][0], input[0][1])
+                for (midi_key, midi_channel, mode, midi_status, vJoy_id, axis_button, action) in config:
+                    if input[0] == midi_key and input[1] == midi_channel:
+                        if mode == "slider":
+                            vjoy.SendVJDAxis(vJoy_id, axis_button, input[2])
+                            # MIDI is 0-127, vJoy is 1-32768 (?)
+                            value = (value + 1) << 8
+                            axis_value[axis] = value
+                            vjoy.SetAxis(input[2], vJoy_id, axis)
+                        elif mode == "button":
+                            if action == 1:
+                                vjoy.SetBtn(vJoy_id, axis_button, 1)
+                            elif action == 0:
+                                vjoy.SetBtn(vJoy_id, axis_button, 0)
+                        elif mode == "button-axis":
+                            vjoy.SetBtn(vJoy_id, axis_button, 1)
+                            vjoy.SendVJDAxis(
+                                vJoy_id, axis_button, input[2] + action)
+                key = (input[0], input[1])
                 if key in config:
                     task = config[key]
-                    if task[0] is "slider":
-                        vJoy_ID = task[2]
-                        value = input[0][0][2]
-                        vjoy.SetAxis(value, opt[0], axis[opt[1]])
-                # slider key has 0 as 3rd element
-                slider_key = (input[0][0][0], input[0][0][1], 0)
-                if slider_key in config:
-                    # A slider input
-                    # Check that the output axis is valid
-                    # Note: We did not check if that axis is defined in vJoy
-                    opt = config[slider_key]
-                    if opt[1] in axis:
-                        value = input[0][0][2]
-                        verbose('slider', slider_key, '->', opt, value)
+                    if task[0] == "slider":
+                        # vJoy_ID = task[2]
+                        axis = task[3]
+                        value = input[2]
 
                         # MIDI is 0-127, vJoy is 1-32768 (?)
                         value = (value + 1) << 8
-                        vjoy.SetAxis(value, opt[0], axis[opt[1]])
-
-                # button key has 1 as 3rd element, if button value is not * then this value is 4th element
-                button_key = (
-                    input[0][0][0], input[0][0][1], 1, input[0][0][2])
-                # if no mapping for exact match
-                if not button_key in config:
-                    # set button key for "any" match (* in config)
-                    button_key = (input[0][0][0],
-                                  input[0][0][1], 1, -1)
-
-                if button_key in config:
-                    opt = config[button_key]
-
-                    # A button input
-                    if opt[2] == -1:
-                        verbose('button', button_key, '->',
-                                opt, 'press_and_release')
-
-                        already_waiting_for_release = False
-                        for rq_index in range(len(release_queue)):
-                            if release_queue[rq_index][1] == opt[0] and release_queue[rq_index][2] == opt[1]:
-                                already_waiting_for_release = True
-                                verbose('button', button_key,
-                                        'already pressed and waiting for release')
-
-                        if not already_waiting_for_release:
-                            vjoy.SetBtn(1, opt[0], opt[1])
-                            delay = 0.1  # in seconds
-                            release_queue.append(
-                                (0, opt[0], opt[1], button_key, time.time() + delay))
-                    else:
-                        verbose('button', button_key, '->', opt, opt[2])
-                        vjoy.SetBtn(opt[2], opt[0], opt[1])
-
+                        axis_value[axis] = value
+                        vjoy.SetAxis(value, task[2], axis)
+                    if task[0] == "button-axis":
+                        if input[2] == task[1]:
+                            # vJoy_ID = task[2]
+                            # axis = task[3]
+                            axis_value[axis] += task[4]
+                            if axis_value[axis] > 32768:
+                                axis_value[axis] = 32768
+                            elif axis_value[axis] < 1:
+                                axis_value[axis] = 1
+                            vjoy.SetAxis(axis_value[axis], task[2], task[3])
+                    if task[0] == "button":
+                        if input[2] == task[1]:
+                            # vJoy_ID = task[2]
+                            # button = task[3]
+                            # action = task[4]
+                            vjoy.SetBtn(task[3], task[2], task[4])
             time.sleep(0.01)
     except KeyboardInterrupt:
         quit()
     except:
         traceback.print_exc()
         pass
+    finally:
+        # Relinquish vJoysticks
+        for vid in vJoy_IDs:
+            print('Relinquishing vJoystick:', vid)
+            vjoy.RelinquishVJD(vid)
 
-    # Relinquish vJoysticks
-    for vid in vJoy_IDs:
-        print('Relinquishing vJoystick:', vid)
-        vjoy.RelinquishVJD(vid)
-
-    print('Closing MIDI device')
-    midi.close()
+        print('Closing MIDI device')
+        midi.close()
 
 
 def verbose(*message):
