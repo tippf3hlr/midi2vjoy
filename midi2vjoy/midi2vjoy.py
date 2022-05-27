@@ -136,7 +136,7 @@ config = {
 
 
 def read_conf(conf_file):
-    config = []
+    config = {}
     vJoy_IDs = []
     with open(conf_file, 'r') as file:
         for index, line in enumerate(file):
@@ -168,8 +168,12 @@ def read_conf(conf_file):
                         vJoy_id = int(args[4])
                         axis_button = axis_table[args[5]]
                         action = int(args[6])
-                config.append((midi_key, midi_channel, mode,
-                              midi_status, vJoy_id, axis_button, action))
+                if not (midi_key, midi_channel) in config:
+                    config[(midi_key, midi_channel)] = [
+                        (mode, midi_status, vJoy_id, axis_button, action)]
+                else:
+                    config[(midi_key, midi_channel)].append(
+                        (mode, midi_status, vJoy_id, axis_button, action))
                 if vJoy_id not in vJoy_IDs:
                     vJoy_IDs.append(vJoy_id)
             except:
@@ -243,14 +247,16 @@ def joystick_run():
                 input = midi.read(1)[0][0]
                 verbose("MIDI input:", input)
 
-                for (midi_key, midi_channel, mode, midi_status, vJoy_id, axis_button, action) in config:
-                    if input[0] == midi_key and input[1] == midi_channel:
+                key = (input[0], input[1])
+
+                if key in config:
+                    for (mode, midi_status, vJoy_id, axis_button, action) in config[key]:
                         if mode == "slider":
                             vjoy.SendVJDAxis(vJoy_id, axis_button, input[2])
                             # MIDI is 0-127, vJoy is 1-32768 (?)
                             value = (value + 1) << 8
-                            axis_value[axis] = value
-                            vjoy.SetAxis(input[2], vJoy_id, axis)
+                            axis_value[axis_button] = value
+                            vjoy.SetAxis(input[2], vJoy_id, axis_button)
                         elif mode == "button":
                             if action == 1:
                                 vjoy.SetBtn(vJoy_id, axis_button, 1)
@@ -260,34 +266,7 @@ def joystick_run():
                             vjoy.SetBtn(vJoy_id, axis_button, 1)
                             vjoy.SendVJDAxis(
                                 vJoy_id, axis_button, input[2] + action)
-                key = (input[0], input[1])
-                if key in config:
-                    task = config[key]
-                    if task[0] == "slider":
-                        # vJoy_ID = task[2]
-                        axis = task[3]
-                        value = input[2]
-
-                        # MIDI is 0-127, vJoy is 1-32768 (?)
-                        value = (value + 1) << 8
-                        axis_value[axis] = value
-                        vjoy.SetAxis(value, task[2], axis)
-                    if task[0] == "button-axis":
-                        if input[2] == task[1]:
-                            # vJoy_ID = task[2]
-                            # axis = task[3]
-                            axis_value[axis] += task[4]
-                            if axis_value[axis] > 32768:
-                                axis_value[axis] = 32768
-                            elif axis_value[axis] < 1:
-                                axis_value[axis] = 1
-                            vjoy.SetAxis(axis_value[axis], task[2], task[3])
-                    if task[0] == "button":
-                        if input[2] == task[1]:
-                            # vJoy_ID = task[2]
-                            # button = task[3]
-                            # action = task[4]
-                            vjoy.SetBtn(task[3], task[2], task[4])
+                    key = (input[0], input[1])
             time.sleep(0.01)
     except KeyboardInterrupt:
         quit()
