@@ -223,8 +223,8 @@ def joystick_run():
 
     # Getting the MIDI device ready
     if options.midi == None:
-        print('You have to specify a MIDI interface to use')
-        return
+        options.midi = 1
+        print("No MIDI device specified, using {}.".format(options.midi))
     try:
         verbose('Opening MIDI device:', options.midi)
         midi = pygame.midi.Input(options.midi)
@@ -348,8 +348,8 @@ Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
     
-Standard config file is mapping.conf in the same directory as midi2vjoy.exe.
-Standard MIDI device is 1.
+Default config file is mapping.conf in the same directory as midi2vjoy.exe.
+Default MIDI device is 1.
 ''')
 
 
@@ -406,10 +406,8 @@ def main():
                         action="store_true")
     parser.add_argument("-h", "--help", action="store_true")
     global options
-    options = parser.parse_args()
 
-    options.midi = 1
-    options.conf = "mapping.conf"
+    options = parser.parse_args()
 
     pygame.midi.init()
 
@@ -419,7 +417,10 @@ def main():
         help_config()
     elif options.test:
         midi_test()
-    elif path.exists(options.conf):
+    elif options.conf and path.exists(options.conf):
+        joystick_run()
+    elif path.exists(path.join(sys.path[0], "mapping.conf")):
+        options.conf = path.join(sys.path[0], "mapping.conf")
         joystick_run()
     else:
         help_page()

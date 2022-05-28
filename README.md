@@ -28,8 +28,8 @@ Usage: midi2vjoy -m <midi_device> -c <config_file> [-v]
     -c  --config:       path to a config file (see example_config.conf)
     -v  --verbose:      verbose output
     
-Standard config file is mapping.conf in the same directory as midi2vjoy.exe.
-Standard MIDI device is 1.
+Default config file is mapping.conf in the same directory as midi2vjoy.exe.
+Default MIDI device is 1.
 ```
 ```
                __ _
