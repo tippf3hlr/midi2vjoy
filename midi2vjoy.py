@@ -20,7 +20,7 @@
 #
 
 from inspect import trace
-from os import path
+import os
 import sys
 import time
 import traceback
@@ -249,7 +249,7 @@ def joystick_run():
             arch = 'x64'
         else:
             arch = 'x86'
-        dll_path = path.join(installpath, arch, 'vJoyInterface.dll')
+        dll_path = os.path.join(installpath, arch, 'vJoyInterface.dll')
         vjoy = ctypes.WinDLL(dll_path)
         verbose("VJoy version", vjoy.GetvJoyVersion())
 
@@ -411,16 +411,22 @@ def main():
 
     pygame.midi.init()
 
+    if getattr(sys, 'frozen', False):
+        application_path = os.path.dirname(sys.executable)
+    elif __file__:
+        application_path = os.path.dirname(__file__)
+    verbose("Application path:", application_path)
+
     if options.help:
         help_page()
     elif options.config_help:
         help_config()
     elif options.test:
         midi_test()
-    elif options.conf and path.exists(options.conf):
+    elif options.conf and os.path.exists(options.conf):
         joystick_run()
-    elif path.exists(path.join(sys.path[0], "mapping.conf")):
-        options.conf = path.join(sys.path[0], "mapping.conf")
+    elif os.path.exists(os.path.join(application_path, "mapping.conf")):
+        options.conf = os.path.join(application_path, "mapping.conf")
         joystick_run()
     else:
         help_page()
