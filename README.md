@@ -1,6 +1,6 @@
 # midi2vJoy 2
 
-works with endless encoders!
+works with endless encoders: use your dj controller as a steering wheel!
 
 1. Download and install vJoy from [sourceforge](https://sourceforge.net/projects/vjoystick/)
 2. Download midi2vjoy.exe from the [latest release](https://github.com/tippf3hlr/midi2vjoy/releases)
